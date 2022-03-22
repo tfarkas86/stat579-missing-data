@@ -1,5 +1,9 @@
 # html files
+*.pdf
+*.log
 *.html
+*.zip
+
 
 # History files
 .Rhistory

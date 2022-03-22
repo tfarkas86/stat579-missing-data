@@ -1,0 +1,166 @@
+---
+title: 'Missing Data Analysis: HW 4'
+author: "Tim Farkas"
+date: "11/10/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(wgeesel)
+```
+
+```{r}
+# single dataset generation function
+dd_sim <- function(n, tee=3, corr, rho=.25) {
+  
+id <- rep(1:n,each=tee) #simulate 100 subjects each with 3 observations
+x <- cbind(1, rep(rbinom(n,1,0.5), each=tee)) #generate covariate x(binary) 
+x_mis <- cbind(1,rep(runif(n), each=tee)) #generate x2 (continuous)
+
+sim_data <- data_sim(id, rho=rho, phi=1, x, beta=c(-0.5,0.5), x_mis, para=c(1,-0.5,-0.5), corstr="exchangeable", family="binary",
+lag_level=1) # simulate the correlated binary data
+
+final_data <- sim_data$data %>%
+  select(id, y = response_mis, arr = ind, ylag1, x1 = "2", x2 = "V2")
+
+return(final_data)
+
+}
+
+# make one set
+#onedd <- dd_sim(50, tee=3, corr="ar1", rho=.25)
+
+# function to create many datasets 
+dds_sim <- function(sims, n, tee=3, corr="exchangeable", rho=.25) {
+  map(1:sims, ~ dd_sim(n=n, tee=tee, corr = corr, rho=rho))
+}
+
+# two sets
+#twodds <- dds_sim(sims=2, 100, tee=3, corr="exchangeable", rho=.25)
+```
+
+```{r}
+# one data set analysis function
+wgee_reg <- function(dd) {
+  corrs <- c("exchangeable", "ar1", "unstructured")
+  map(corrs, ~ {
+    mod <- wgee(y ~ x1, data = dd, id = dd$id,
+                family="binomial", 
+                corstr = .x, mismodel = arr ~ x2 + ylag1)
+    rhomean <- ifelse(is.matrix(mod$rho),
+                      mean(mod$rho[lower.tri(mod$rho)]), 
+                      mod$rho)
+    tibble(b0_est = mod$beta[1, 1], 
+           b1_est = mod$beta[2, 1],
+           a0_est = mod$mis_fit$coefficients[1], 
+           a1_est = mod$mis_fit$coefficients[2], 
+           a2_est = mod$mis_fit$coefficients[3],
+           b0_bias = mod$beta[1, 1] + .5, 
+           b1_bias = mod$beta[2, 1] - .5,
+           a0_bias = mod$mis_fit$coefficients[1] - 1, 
+           a1_bias = mod$mis_fit$coefficients[2] + .5, 
+           a2_bias = mod$mis_fit$coefficients[3] + .5, 
+           b0_se = sqrt(mod$var[1, 1]), 
+           b1_se = sqrt(mod$var[2, 2]), 
+           a0_se = summary(mod$mis_fit)$coefficients[1, 2], 
+           a1_se = summary(mod$mis_fit)$coefficients[2, 2], 
+           a2_se = summary(mod$mis_fit)$coefficients[3, 2], 
+           rho = rhomean)
+    
+  })
+  
+}
+
+#mod_outs <- wgee_reg(final_data)
+```
+
+```{r}
+# make 250 atasets, with 100, 500, and 2000 samples
+enns <- c(100, 500, 2000)
+sets <- map(enns, ~ dds_sim(sims=2, n=.x))
+
+reg_reshape <- function(sets) {
+  map(sets, ~wgee_reg(.x)) %>%
+  transpose() %>%
+  map(~ bind_rows(.x)) %>%
+  set_names(c("exchangeable", "ar1", "unstructured"))
+}
+
+reg_out <- map(sets, ~ reg_reshape(.x)) %>%
+  set_names(paste("n", enns, sep=""))
+
+parm_sums <- function(sets) {
+  map(sets, ~ .x %>% summarize(across(.fns= ~ mean(.x))) %>%
+        unlist())
+}
+
+out_sums <- reg_out %>%
+  map(~ parm_sums(.x))
+
+getallstats <- function(regs, outs) {
+  map2(.x = regs, .y = outs, ~ {
+  .x %>%
+    mutate(b0_sse = (b0_est - .y["b0_est"])^2, 
+           b1_sse = (b1_est - .y["b1_est"])^2, 
+           a0_sse = (a0_est - .y["a0_est"])^2, 
+           a1_sse = (a0_est - .y["a1_est"])^2, 
+           a2_sse = (a0_est - .y["a2_est"])^2)
+})
+}
+
+all_stats <- map2(.x = reg_out, .y = out_sums, ~ getallstats(.x, .y))
+
+```
+
+```{r, results='asis'}
+# aggregate
+statmeans <- function(stats) {
+  stats %>%
+  map( ~ .x %>% summarize(across(.fns= ~ mean(.x))))
+}
+
+biglist <- all_stats %>%
+map(~ statmeans(.x))
+  
+  
+shapetables <- function(statmeans) {
+  statmeans %>%
+  map(~{ .x %>%
+  select(-rho) %>%
+  pivot_longer(everything(), names_to = c("parameter", ".value"),
+               names_sep = "_", values_to = "estimates")
+    }) %>%
+  bind_cols() %>%
+  select(-c(6, 11)) %>%
+  set_names(c("parms", rep(c("est", "bias", "se", "sd"), 3))) 
+}
+
+
+  map2(.x = map(biglist, ~ shapetables(.x)),
+       .y = c("Table 1: n = 100",
+                      "Table 2: n = 500",
+                      "Table 3: n = 2000"),
+
+       .f = ~ {print(knitr::kable(.x, format = "latex", digits = 3,
+                       booktabs = TRUE,
+                       caption = .y) %>%
+  kableExtra::add_header_above(c(" " = 1,
+                     "Exchangeable" = 4,
+                     "AR1" = 4,
+                     "Unstructured" = 4)) )}
+  )
+
+
+
+```
+
+** Not sure why these tables are printing twice. Sorry!
+
+

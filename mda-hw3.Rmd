@@ -1,0 +1,360 @@
+---
+title: 'Missing Data Analysis: Homework 2'
+author: "Tim Farkas"
+date: "10/17/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(magrittr)
+library(bindata)
+library(missForest)
+library(abind)
+library(DirichletReg)
+library(norm)
+library(mice)
+```
+
+### Problem 1
+
+Generate the data.  
+```{r generate data}
+# create complete data
+set.seed(1784)
+x <- array(rnorm(60), dim=c(30,2)) 
+d1 <-data.frame(ra2ba(x)) 
+colnames(d1) <- c("Z1","Z2")
+for(i in 1:30){
+  if (d1[i,1]==0) d1[i,1]=2
+  if (d1[i,2]==0) d1[i,2]=2}
+
+# add 20% missing values
+d2 <- prodNA(d1, noNA = 0.2)
+
+### this alternative avoids the bindata and missForest dependencies, which may improve robustness. i also prefer to avoid loops when possible. ###
+
+# complete data
+d_comp <- tibble(Z1 = sample(c(1, 2), 30, replace = TRUE), 
+                 Z2 = sample(c(1, 2), 30, replace = TRUE))
+# missingness pattern, if you should want it for later
+r <- tibble(R1 = sample(c(0, 1), 30, prob = c(.2, .8), replace = TRUE),
+            R2 = sample(c(0, 1), 30, prob = c(.2, .8), replace = TRUE))
+# observed data
+d_obs <- r %>%
+  mutate(across(R1:R2, ~ ifelse(.x == 0, NA, .x))) %>%
+  multiply_by(d_comp)
+
+```
+
+A rowwise imputation function. 
+```{r rowwise imputation function}
+thetas <- matrix(c(.3, .25, .25, .2), nrow=2) 
+
+# i think this data structure might make what follows less miserable,
+# and more generalizable,
+# but i don't have time to fully impliment this approach. leaving it here.
+tcube <- abind(thetas, 
+               thetas / rowSums(thetas), 
+               thetas / colSums(thetas), along = 3)
+
+# row-wise imputation function 
+# restricted to two variables each with two values, 1 & 2 
+# uses thetas and value of non-missing variable to probabilistically impute
+r_imp2 <- function(obs, thetas) {
+  
+  # all four options (11, 12, 21, 22)
+  opts <- expand.grid(Z1=c(1, 2), Z2=c(1, 2))
+  
+  # unwrap theta matrix
+  thetas <- as.vector(thetas)
+  
+  # blerg, there has got to be a better way than this miserable
+  # nested ifelse decision structure
+  out <-  if(!any(is.na(obs))) {
+    obs
+  } else if(!is.na(obs[1])) {
+    if (obs[1] == 1) { # Z1 == 1, Z2 missing
+      opts[sample(c(1, 3), size = 1,
+                  prob = c(thetas[1]/(thetas[1] + thetas[3]), 
+                           thetas[3]/(thetas[1] + thetas[3]))), ]
+      
+    } else if (obs[1] == 2) { # Z1 == 2, Z2 missing
+      opts[sample(c(2, 4), size = 1,
+                  prob = c(thetas[2]/(thetas[2] + thetas[4]), 
+                           thetas[4]/(thetas[2] + thetas[4]))), ]
+    } 
+  } else if(!is.na(obs[2])) {
+    if (obs[2] == 1) { # Z2 == 1, Z1 missing
+      opts[sample(c(1, 2), size = 1,
+                  prob = c(thetas[1]/(thetas[1] + thetas[2]), 
+                           thetas[2]/(thetas[1] + thetas[2]))), ]
+      
+    } else if (obs[2] == 2) { # Z2 == 2, Z1 missing
+      opts[sample(c(3, 4), size = 1,
+                  prob = c(thetas[3]/(thetas[3] + thetas[4]), 
+                           thetas[4]/(thetas[3] + thetas[4]))), ]
+      
+    }
+  } else {
+    opts[sample(1:4, size = 1, prob = thetas), ]
+  }
+  
+  return(out %>% unlist)
+}
+```
+
+A function to impute a whole dataset with missing values. 
+```{r imp_all function}
+# impute function 
+# splits data frame into list of row vectors, 
+# impute when there are missing values, 
+# combine back together into a data frame
+# ... not ideal, but it works
+
+imp_all <- function(obs_dd, thetas) {
+  
+obs_dd %>% 
+  mutate(id = 1:nrow(.)) %>%
+  group_by(id) %>%
+  group_split() %>%
+  map(~ .x %>% select(-id) %>% unlist()) %>%
+  map(~ r_imp2(obs = .x, thetas = thetas)) %>%
+  bind_rows()
+
+}
+
+# test it
+imp_all(d2, thetas) # success!
+
+```
+
+A function to get the counts of all four outcomes.
+```{r get enns}
+# function to get counts of each outcome in the imputed data
+get_enns <- function(dd) {
+  dd %>%
+  mutate(across(Z1:Z2, ~ as.factor(.x))) %>%
+  group_by(Z1, Z2) %>%
+  summarize(enn = n()) %>%
+    pull(enn) %>%
+    matrix(nrow=2, byrow = TRUE, 
+           dimnames = list(Z1 = c(1, 2), Z2 = c(1, 2)))
+}
+```
+
+The Gibbs sampler
+```{r The Gibbs Sampler}
+
+# due to the way R matrix are populated, and later vectorized, 
+# i have opted to switch the input vector pattern from
+# <11, 12, 21, 22> to <11, 21, 12, 22>
+init_thetas <- c(.3, .25, .25, .2)
+thetas <-  array(init_thetas, dim=c(2, 2, 1), 
+                      dimnames = list(Z1 = c(1, 2), Z2 = c(1, 2)))
+init_enns <- matrix(c(9, 8, 7, 6), 2, 
+                    dimnames = list(Z1 = c(1, 2), Z2 = c(1, 2)))
+
+# aha, you need the response pattern after all ... 
+# wait no you don't, lol. just use the observed data again
+r <- d2 %>% 
+  mutate(across(Z1:Z2, ~ ifelse(!is.na(.x), 1, .x)))
+
+M = 100 # number of iterations
+
+# the Gibbs sampler
+for (i in 1:M) {
+
+# impute based on most recent thetas and return count of reponse values  
+enns <- d2 %>%
+  imp_all(thetas[,, i]) %>%
+  get_enns()
+
+thetas <- abind(thetas,
+                matrix(rdirichlet(1, as.vector(enns) 
+                                  + as.vector(init_enns)), 
+                       nrow=2), along=3)
+}
+
+# arrange thetas into a simple table
+theta_post <- thetas %>% 
+  asplit(MARGIN = 3) %>%
+  map(~ as.vector(.x) %>% set_names(c("p11", "p21", "p12", "p22"))) %>%
+  bind_rows() %>%
+  mutate(iteration = 0:(nrow(.) - 1), .before="p11")
+  
+# plot iterations
+theta_post %>%
+  # the sampler is actually kind of slow, so I'm only doing 100 without burnin
+  # but burning might be necessary if the initial values are far off.
+  # let's take a look
+  slice(1:101) %>%
+  tidyr::pivot_longer(cols=p11:p22, 
+                      names_to="response", 
+                      values_to = "theta") %>%
+  ggplot() + 
+  geom_line(aes(x = iteration, y = theta)) + 
+  facet_wrap(~ response)
+```
+
+From this graph it appears that the sampler may not have converged, which is especially clear looking at p11. We should run a longer simulation, then sample from a subset of the later iterations where it appears convergence has occurred. 
+```{r final thetas}
+theta_post %>%
+  select(p11:last_col()) %>%
+  slice(50:101) %>%
+  colMeans()
+```
+
+### Problem 2  
+
+```{r input}
+amd <- read.table("~/Dropbox/STAT579-Missing-Data/armd.R.dat", 
+                  quote="\"", comment.char="") 
+
+# the tidyverse 
+amd <- read_delim("~/Dropbox/STAT579-Missing-Data/armd.R.dat",
+                  delim = " ", col_names = FALSE) %>%
+  select(id = 1, 
+         '1' = 7, '4' = 8, '12' = 9, '24' = 10, '52' = 11, 
+         treat = 13) %>%
+  mutate(across(treat, ~ as.factor(.x)))
+
+```
+
+```{r imputation, eval=TRUE}
+# get starting values for theta using EM algorithm
+s  <-  prelim.norm(as.matrix(amd))
+thetahat <- em.norm(s)
+
+rngseed(1234567)   #set random number generator seed
+theta <- da.norm(s, start=thetahat,
+                 steps=20,     # number of iteration of DA
+                 showits=TRUE)  # print iteration numbers
+
+
+#aa<-getparam.norm(s, theta,corr=TRUE)
+#amd_imp <- imp.norm(s, theta, amd)
+
+# Let's now obtain m completed datasets
+M <- 10
+MI_data <- list()
+for(ds in 1:M){
+  theta <- da.norm(s, start=thetahat,
+                   steps=20,     # number of iteration of DA
+                   showits=FALSE)  # print iteration numbers
+
+  # Get one imputation based on 'theta'
+  amd_imp <- imp.norm(s, theta, amd)
+  MI_data[[ds]] <- amd_imp
+}
+
+# reshape
+amd_list <- MI_data %>%
+  map(~ .x %>%
+        pivot_longer(cols='1':'52',
+                     names_to = "week", 
+                     values_to = "lines") %>%
+  mutate(across(week, ~ as.numeric(.x))))
+
+# apply linear model to all imputations
+thetas <- amd_list %>%
+  map(~ {
+    an <- lm(lines ~ treat + week, data = .x)
+    list(t(summary(an)$coefficients)[1,],
+         t(summary(an)$coefficients)[2,]^2)})
+
+# faff about getting Rubins calculations
+theta_dd <- thetas %>%
+  transpose() %>%
+  map(~ bind_rows(.x) %>%
+        rename(intercept = 1, treat = treat4)) %>%
+  set_names(c("theta_hats", "vars"))
+  
+
+theta_hat <- theta_dd$theta_hats %>%
+  summarise_all(mean)
+
+var_within <- theta_dd$vars %>%
+  summarize_all(mean)
+
+theta_hat_dd <- rep(list(theta_hat), M) %>%
+  bind_rows()
+
+vbtw_sum <- (theta_dd$theta_hats - theta_hat_dd)^2 %>%
+  as_tibble() %>%
+  summarize_all(sum)
+
+correction <- (1 + 1 / M) * (1 / (M - 1)) 
+
+var_btw <- correction * vbtw_sum
+
+var_total <- var_within + var_btw
+
+# print it all out
+bind_rows(c(stat = "theta_hat", theta_hat), 
+          c(stat = "theta_var", var_total))
+
+# or try with pool from mice package
+mods <- amd_list %>%
+  map(~ lm(lines ~ treat + week, data = .x))
+
+pool(mods)
+
+# wow -- that's a lot easier
+ 
+```
+
+With MICE
+```{r mice }
+# reloading data to rename stuff
+# mice doesn't like the simple number column headers!
+amd_mice <- amd %>%
+  pivot_longer('1':'52', names_to = "week", values_to = "lines") %>%
+  mutate(across(week, ~ as.integer(.x)))
+
+# impute with MICE
+amd_imp <- mice(amd_mice,
+                 method = c("", "", "", "norm"),
+                 m=10, 
+                 maxit = 12, 
+                printFlag = FALSE)
+
+# fit models
+fit <- with(amd_imp, lm(lines ~ treat + week))
+
+# get results with Rubin's rules
+pool(fit)
+pool(mods)
+
+```
+
+Well, I don't know what much to say here. Firstly, the results between the two methods are almost exactly the same. There's a slight difference when I manually calculated the estimates and variances myself, but the difference is very, very small. The fact that they are so similar is actually quite interesting, because the imputations here are rather different in how I've implimented. Because I thought it would be better to impute, then pivot to long form before analysis, that's what I did for the multivariate normal imputation. But that proved more difficult for the MICE imputation, so I pivoted *before* imputing. I think the imputations in the two cases should lead to different results, since in the covariance among the weeks should influence the imptation when in wide format, whereas the covariance shoud be ignored in long format. One could argue that the variables may simply not be very well correlated, but this is a time series! So, the weeks should be correlated. Shrug? 
+
+Try a larger M
+```{r}
+# impute with MICE
+amd_imp50 <- mice(amd_mice,
+                 method = c("", "", "", "norm"),
+                 m=50, 
+                 maxit = 12, 
+                printFlag = FALSE)
+
+# fit models
+fit2 <- with(amd_imp50, lm(lines ~ treat + week))
+
+# get results with Rubin's rules
+pool(fit2)
+```
+
+I increased the number of imputed data sets with MICE from 10 to 50, and see positively not difference in the results. I suppose 10 is enough!
+
+
+
+
+

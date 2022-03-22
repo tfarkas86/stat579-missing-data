@@ -1,0 +1,184 @@
+---
+title: 'Missing Data Analysis: Homework 5'
+author: "Tim Farkas"
+date: "12/1/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### Problem 1. 
+
+**a**  
+
+$$0 < p_{10} < 1 - p_{11} + p_{01}$$
+Add $p_{11}$ though all terms:
+
+$$p_{11} \le \theta \le 1 - p_{01}$$
+**b**  
+
+$$P(R = 1| Y = 1) = \frac{p_{11}}{p_{11} + p_{01}} = \frac{p_{11}}{\theta} $$
+$$P(R = 1| Y = 0) = \frac{p_{01}}{p_{01} + p_{00}} = \frac{p_{01}}{1-\theta} $$
+**c** 
+
+From the last result:
+
+$$P(R = 1| Y = 1) = \frac{p_{11}}{p_{11} + p_{01}} = \frac{p_{11}}{\theta} $$
+Rearranging: 
+
+$$\theta = \frac{p_{11}}{P(R = 1|Y = 1)}$$
+Because MAR with single variable is same as MCAR: 
+
+$$P(R = 1| Y = 1) = P(R = 1)$$
+Therefore,
+
+$$\theta = \frac{p_{11}}{P(R = 1|Y = 1)} =\frac{p_{11}}{P(R = 1)} =\frac{p_{11}}{p_{11} + p_{01}} $$
+
+Because $\theta$ is a function only of $p_{11}$ and $p_{01}$, both of which are observable quantities, $\theta$ is identifiable. 
+
+### Problem 2. Option c: Analysis of armd.R.dat dataset with sensitivity analysis. 
+
+With this analysis, my aim to test for the effect of an experimental treatment, interferon-$\alpha$, on visual acuity in patients experiencing age-related macular degeneration. Due to dropout from the study, there are a considerable number of patients for which there are missing data at the 52$^{nd}$ week of the study, so I will use multiple imputation by chained equations (MICE) to impute the data. 
+
+For the purposes of imputation, and for the purpose of testing the hypothesis that the interferon treatment influences visual acuity, I incorporate as covariates both 1) baseline visual acuity and 2) lesion grade prior to experimental treatment.
+
+I perform a sensitivity analysis in order to evaluate the extent to which an assumption that the missing data due to dropout are missing at random (MAR).
+
+What follows is a chronicle of the analysis with author annotations. 
+
+I load a couple important libraries.
+```{r libraries}
+library(tidyverse)
+library(mice)
+library(knitr)
+```
+
+Then I import the data, piping through a few basic modifications to get the data I need for the analysis outlined above. 
+```{r data import }
+# import dataset
+dd <- read_delim("~/Dropbox/STAT579-Missing-Data/armd.R.dat",
+                  delim = " ", col_names = FALSE) %>%
+  
+  # select relevant fields
+  select(id = 1, base = 7, acu = 11, lees = 12, treat = 13) %>%
+  
+  # change treatment variable to a factor for analysis
+  mutate(across(c(treat), ~ as.factor(.x)))
+```
+
+#### Exploratory Data Analysis
+
+I start exploratory data analysis looking at the missing data pattern. 
+```{r EDA}
+md.pattern(dd)
+```
+
+We find 44 cases for which 52-week acuity is missing, but also 1 case for which lesion data are missing. For clarity in the output, I remove this one patient who does not have lesion data, though assert the methods below could deal this missing data with no problem. (Note, I do not like saving over objects like this, but I'm doing it anyway to demonstrate the flow of analysis).
+
+```{r remove missing lesion patient}
+dd <- dd %>%
+  drop_na(lees)
+```
+
+Next, let's take a look at the distribution for each variable. 
+
+```{r distributions}
+dd %>%
+  gather(key="variable", value = "value", base:lees) %>%
+  ggplot() +
+  geom_histogram(aes(x = value)) + 
+  facet_wrap(~ variable, scales = "free")
+```
+
+The data look pretty well behaved based on these distributions. No major outliers anyway, so I'm just going to proceed with imputation and analysis. 
+
+#### Analysis with MAR
+This analysis that assumes acuity data are Missing at Random, imputing data with MICE.
+
+I start with a dummy analysis, just to get data structures for manipulation and use down the line.  Because I'm interested in testing the effect of the treatment on acutiy at 52-weeks, I very much do not want to impute data for acuity based on the treatment. I modify the prediction structure for predictive mean modeling to prevent patient ID and treatment from influencing imputation. I'm happy with predictive mean modeling of missing acuity data based on baseline acuity and lesion severity, so I keep moving forward. 
+
+```{r first imputation}
+# a dummy imputation
+imp_dummy <- mice(dd, maxit=0, print=F, seed=4)
+
+# remove id and treatment from imputation model
+imp_dummy$predictorMatrix[, c(1, 5)] <- 0
+imp_dummy$predictorMatrix[c(1, 5), ] <- 0
+
+# impute with MICE
+ini <- mice(dd, maxit=5, print=F, seed=4, pred = imp_dummy$predictorMatrix)
+
+# retrieve imputed dataset, averaging over 5 imputations
+imp_dd <- complete(ini) %>%
+  
+  # center and scale for good measure
+  mutate(across(c(acu, base), ~ as.vector(scale(.x))))
+```
+
+I do a quick backward stepwise regression, the details of which are not shown here, starting with a model containing the treatment, lesion severity, baseline acuity, and all interactions up to the third order. No interactions are significant, so I finish with the purely additive model containing all three terms.
+
+```{r multiple regression on imputed data}
+an1 <- lm(acu ~ treat + base + lees, data = imp_dd)
+summary(an1)
+```
+The results show, as expected, that more severe lesions lead to lower acuity, and better baseline acuity lead to higher acuity. Unexpected, however, is that the treatment appears to lead to worse acuity, not better.
+
+For fun, I compare against a model assuming the data are Missing Completely At Random, and perform complete case analysis.
+```{r complete case analysis}
+dd %>% 
+  mutate(across(c(acu, base), ~as.vector(scale(.x)))) %>%
+  lm(acu ~ treat + lees + base, data = .) %>%
+  summary
+```
+
+Interestingly, there is a major distinction between the MAR and MCAR analysis, not in the effect of the treatment on acuity (which is very similar), but in the effect of lesion severity. Lesion severity negatively correlates with acuity for the imputed dataset, but not for the complete case analysis. Given strong theoretical support for the idea that lesion severity should reduce acuity, this result indicates that data imputation may dramatically improve the modeling of acuity in for this analysis. 
+
+I note here that while I include in these linear models final, absolute acuity as the response variable, really I'm looking at the change in acuity, since I have included baseline acuity as a covariate. I prefer to do this, instead of modeling the change in acuity directly, because modeling the change in acuity essentially forces the relationship between baseline acuity and final acuity to be 1-to-1, which may not be true. Instead, I estimate a parameter for that relationship, which turns out to be 0.58. That's not a great comparison to 1, since I've scaled the data to equal variance, but an unscaled analysis shows the relationship to be 0.68, with an extremely tight confidence interval, indicating an assumed regression coefficient of 1 can be improved upon. 
+
+#### Sensitivity Analysis
+
+However, the assumption of MAR or MCAR may not be good, so we want to evaluate whether an assumption of Not Missing at Random leads to different results. One approach to modeling NMAR data, is to use a pattern-mixture model, in which a constant is added to the missing data. Below, we check 7 constants, ranging from 3 standard deviations below to 3 above the imputed values, where 0 corresponds to MAR. 
+```{r}
+deltas <- -3:3
+sa_fits <- map(deltas, ~{
+  
+  # set post-processing specification to add constants
+  imp_dummy$post["acu"] <-  paste("imp[[j]][, i] <- imp[[j]][, i] +", .x) 
+  
+  dd %>% 
+    
+    # impute as before, but post-process with addition of delta
+    mice(post = imp_dummy$post, pred = imp_dummy$predictorMatrix, 
+         maxit = 10, m = 10, seed = .x*7, print = FALSE) %>%
+    with(., lm(acu ~ treat + base + lees)) %>%  # fit linear model
+    pool %>% # use Rubin's rules to pool the results across imputations
+    summary %>% # get coefficients
+    mutate(delta = .x, .after = term) %>% # add delta to data frame
+    mutate(across(estimate:p.value, ~ round(.x, 3))) %>% # round to 3 decimals
+    select(-df) # remove df from output
+  
+}) %>%
+  
+  # bind it all together into one data frame
+  bind_rows() %>%
+  arrange(term)
+
+
+
+
+
+kable(sa_fits)
+```
+
+The results of the sensitivity analysis are not, in my opinion, very conclusive. Ignoring the intercept, it appears as though the estimates and conclusions drawn about the effect of baseline acuity and lesion severity are not much influenced by differences across a 6 standard deviation range of deltas. Treatment, on the other hand, does seem to vary from one delta to the next, but there is no clear trend across the range. We see in general that there is not clear evidence of a treatment effect in most cases based on p-values, though the parameter estimates consistently show a negative influence, numerically speaking. There is a significant effect of treatment when delta = -3, but this effect is not strong, with p = 0.036, compared to two other cases where p ~= 0.095. 
+
+Given that there is no clear indication of a treatment effect here, I would probably opt to settle for an MAR analysis (delta = 0) and conclude no effect. There is a discrepancy, recall, with the one-off analysis done above. I'm not sure exactly how to account for that. I have tried increasing the number of imputations, but failed to find greater stability in parameter estimates. Checking a couple more random seeds, the numbers do seem to shift irrespective of the deltas, in line with the lack of trend across the range. This seems to suggest that the results are highly sensitive to initial values in the imputation process. There may be a way to stabilize this effect, but in the end, it just doesn't lend confidence to the hypothesis that the treatment influence acuity.   
+
+
+
+
+
+

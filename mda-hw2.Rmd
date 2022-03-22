@@ -1,0 +1,315 @@
+---
+title: "Missing Data Analysis Homework 2"
+author: "Tim Farkas"
+date: "9/23/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Problem 1  
+
+$$p(z_{(r)}, r = 11) = \sum_{\phi} \pi_{11z_1z_2} = P(z_1|r_1 = 1, r_2 = 1, z_2 = A) + P(z_1|r_1 = 1, r_2 = 1, z_2 = B) $$
+$$p(z_{(r)}, r = 10) = \sum_{z_2} \pi_{10z_1z_2} = P(z_1|r_1 = 1, r_2 = 0, z_2 = A) + P(z_1|r_1 = 1, r_2 = 0, z_2 = B) $$    
+$$p(z_{(r)}, r = 01) = \sum_{z_1} \pi_{01z_1z_2} = P(z_1|r_1 = 0, r_2 = 1, z_2 = A) + P(z_1|r_1 = 0, r_2 = 1, z_2 = B) $$
+
+#### Problem 2
+
+$$p(z_{(r)}, r = 11) = 
+\int_{\phi}N(\mathbf{\mu}, \mathbf{\Sigma}) = 
+\frac{1}{2\pi|\Sigma|{\frac{1}{2}}}
+e^{-\frac{1}{2}
+\begin{pmatrix}
+z_1 - \mu_1 \\
+z_2 - \mu_2 \\
+\end{pmatrix}^T
+\mathbf{\Sigma}^{-1}
+\begin{pmatrix}
+z_1 - \mu_1 \\
+z_2 - \mu_2 \\
+\end{pmatrix}}$$
+
+$$p(z_{(r)}, r = 10) =
+\int_{z_2}N(\mathbf{\mu}, \mathbf{\Sigma}) = 
+N(\mu_1, \sigma_1) = 
+\frac{1}{\sqrt{2\pi}\sigma_1} 
+e^{-\frac{1}{2}
+\left(\frac{z_1 - \mu_1}{\sigma_1}\right)
+}$$
+
+$$p(z_{(r)}, r = 01) = 
+\int_{z_1}N(\mathbf{\mu}, \mathbf{\Sigma}) = 
+N(\mu_1, \sigma_1) = 
+\frac{1}{\sqrt{2\pi}\sigma_2} 
+e^{-\frac{1}{2}
+\left(\frac{z_2 - \mu_2}{\sigma_2}\right)
+}$$
+
+#### Problem 3  
+
+**a** 
+
+$p(z_{(r)}, r = 11) = \sum_{\phi} \pi_{z_1z_2} = \pi_{z_1z_2}^{I(r = 11)}$  
+$p(z_{(r)}, r = 10) = \sum_{z_2} \pi_{z_1z_2} = \pi_{z_1+}^{I(r = 10)}$  
+$p(z_{(r)}, r = 01) = \sum_{z_1} \pi_{z_1z_2} = \pi_{+z_2}^{I(r = 01)}$  
+
+Because $r = 11$, $r = 10$, and $r = 01$ are mutually exclusive and are the only cases with observed data ($r = 00$ is case where nothing is observed), therefore 
+
+$$p(z_{(r)}|\theta) = \pi_{z_1z_2}^{I(r = 11)}  
+\pi_{z_1+}^{I(r = 10)}  
+\pi_{z_1z_2}^{I(r = 01)} $$
+
+So, 
+
+$$L_{obs}(\theta) = \prod_ip(z_{i,(r)}|\theta) = \prod_ip(z_{(r)}|\theta) =
+\pi_{i,z_1z_2}^{I(r_i = 11)}  
+\pi_{i,z_1+}^{I(r_i = 10)}  
+\pi_{i,z_1z_2}^{I(r_i = 01)} $$
+
+**3b** 
+
+$$Q_{\theta}(\theta |\theta^t) = E(log[L(\theta)]) = 
+log\prod_i\pi_{z_i1, z_i2}^{r_i = 11}\pi_{z_i1, +}^{r_i = 10}\pi_{+, z_i2}^{r_i = 01}\pi_{+,+}^{r_i = 00}$$
+
+Log of product is sum of logs & expectation of sum is sum of expectations: 
+
+$$\sum_iE[logP(z_{ir_i}, Z_{i(\overline{r}_i)} | \theta) | Z_{i(r_i)} = z_{i_(r_i)}, \theta^t] $$
+$$= \sum_i\sum_rI(r_i = r)E[logP(z_{ir}, Z_{i(\overline{r})} | \theta) | Z_{i(r)} = z_{i(r)}, \theta^t]$$
+
+For $r_i = 11$, no terms are random, so 
+
+$$E[logP(z_{ir}, Z_{i(\overline{r})} | \theta) | Z_{i(r)} = z_{i(r)}, \theta^t] = logP(z_{ir}, Z_{i(\overline{r})} | \theta) | Z_{i(r)} = z_{i(r)}, \theta^t] = log(\pi_{z_{i, 1}, z_{i, 2}})$$
+
+For $r_i = 10$, $Z_2$ is random, so need to take expectation of $\pi_{z_{i,1},+}$. For discrete cases, $E(Y) = \sum_k y_kP(y = y_k)$, 
+so: 
+
+$$E[log(\pi_{z_{i,1},+})] = 
+log(\pi_{z_{i,1}, 1})P(\pi_{z_{i,1},1}) + log(\pi_{z_{i,1}, 2})P(\pi_{z_{i,1},2}) $$
+
+$$ = \sum_llog(\pi_{z_{i,1}, l})P(\pi_{z_{i,1},l}) = 
+\sum_llog(\pi_{z_{i,1}, l})\frac{\pi_{z_{i,1},l}}{\pi_{z_{i,1},+}}$$
+
+The same logic as above applies for cases where $r = 01$, so 
+
+$$E[log(\pi_{z_{i,1},+})] = \sum_klog(\pi_{k, z_{i,2}})\frac{\pi_{k, z_{i,2}}}{\pi_{+, z_{i,2}}}$$
+For $r = 00$, both $Z_1$ and $Z_2$ are random, so we take the expectation with respect to both variables: 
+
+$$E[log(\pi_{+,+})] = \sum_{l,k} log(\pi_{lk})P(\pi_{lk}) 
+= \sum_{l,k} log(\pi_{lk})\pi_{lk}$$
+
+Combining together, we get 
+
+
+$$Q_{\theta}(\theta |\theta^t) = \sum_i[$$
+$$I(r_i = 11)log(\pi_{z_{i, 1}, z_{i, 1}}) + $$
+$$I(r_i = 10)\sum_llog(\pi_{z_{i,1}, l})\frac{\pi_{z_{i,1},l}}{\pi_{z_{i,1},+}} + $$
+$$I(r_i = 01)\sum_klog(\pi_{k, z_{i,2}})\frac{\pi_{k, z_{i,2}}}{\pi_{+, z_{i,2}}} + $$
+$$I(r_i = 00)\sum_{l,k} log(\pi_{lk})\pi_{lk}]$$
+Define $W_{ikl}^{t + 1}log(\pi_{kl})$ as sum across all values of $r$, then:
+
+$$Q_{\theta}(\theta |\theta^t) = \sum_{i, k, l}W_{ikl}^{t+1}log(\pi_{kl})$$
+**c**
+
+$$\frac{\delta}{\delta\pi_{kl}}Q_{\theta}(\theta |\theta^t) = 
+\frac{\delta}{\delta\pi_{kl}}\sum_{i, k, l}W_{ikl}^{t+1}log(\pi_{kl})$$
+$$= \frac{\delta}{\delta\pi_{kl}}\left(\sum_iW_{i11}\pi_{11} + \sum_iW_{i12}\pi_{12} + 
+\sum_iW_{i21}\pi_{21} + \sum_iW_i22\pi_{22}\right) $$
+$$= \frac{\sum_iW_{i11}}{\pi_{11}} + \frac{\sum_iW_{i12}}{\pi_{12}} + 
+\frac{\sum_iW_{i21}}{\pi_{21}} + \frac{\sum_iW_{i22}}{\pi_{22}}  $$
+
+This is slightly old work and clearly not getting there. I didn't have time to incorporate to the update sent by email. Looking forward to the answer!
+
+### Problem 4  
+
+**a** 
+
+$$Q(\lambda, p|\lambda^{(t)}, p^{(t)}) = \sum_iE[P(X_i, G_i| p, \lambda) | X_i = x_i, p^{(t)}, \lambda^{(t)}]  = \sum_iE[P(G_i|X_i, p, \lambda)]$$
+
+$$E[P(G_i|X_i, p, \lambda)] = \sum_lG_{i,l}P(G_{i,l}|X_i)$$
+$$= (0)P(G_i = 0|x_i) + (1)P(G_i = 1|X_i) = P(G_i = 1|X_i)$$
+Applying Bayes' Theorum and total probability:
+
+$$ P(G_i = 1|X_i) = \frac{P(X_i|G_i = 1)P(G_i)}{P(X_i)} = \frac{P(X_i|G_i = 1)p^{(t)}}{P(X_i | G_i = 1)P(G_i = 1) + P(X_i|G_I = 0)P(G_i = 0)} $$
+Because $P(X_i|G_i = 1)$ is complete mass at $X_i = 0$, and substitute Poisson when $P(X_i|G_i = 0)$:
+$$ = \frac{I(X_i = 0)p^{(t)}}{I(X_i = 0)p^{(t)} + (1-p^{(t)})\frac{\lambda^{x_i}_{(t)}e^{-\lambda^{(t)}}}{x_i!}} $$
+Because the expression equals 0 when $x_i \ne 0$, include only one indicator function, and assume $x_i = 0$, so 
+
+$$ = I(X_i = 0)\frac{p^{(t)}}{p^{(t)} + (1-p^{(t)})e^{-\lambda^{(t)}}} $$
+
+To derive the M step, take partial derivatives of the log likelihood WRT $p $ and $\lambda$. 
+
+$$ln(L(p, \lambda)) = 
+\sum_iG_iln(p) + 
+\sum_i(1-G_i)log(1-p) + 
+\sum(1-G_i)\left[x_ilog(\lambda) - \lambda - \sum_ix_i!\right]$$
+
+The derivative WRT p: 
+
+$$\frac{\delta}{\delta p}ln(L(p, \lambda)) =
+\frac{\delta}{\delta p} \sum_iG_iln(p) + 
+\frac{\delta}{\delta p}\sum_i(1-G_i)log(1-p) + 0$$
+
+$$\Rightarrow \quad 0= \frac{\sum G_i}{p} - \frac{\sum (1-G_i)}{1-p}$$
+$$\Rightarrow \quad \frac{\sum (1-G_i)}{1-p} = \frac{\sum G_i}{p} $$
+
+$$\Rightarrow \quad p = 
+\frac{\sum G_i - p\sum G_i}{\sum(1-G_i)}$$
+$$\Rightarrow \quad p + \frac{p\sum G_i}{\sum(1-G_i)} = 
+\frac{\sum G_i}{\sum (1-G_i)}$$
+
+$$\Rightarrow \quad p\frac{\sum(1-G_i) + \sum G_i}{\sum(1-G_i)} = 
+\frac{\sum G_i}{\sum(1-G_i)}$$
+
+$$\Rightarrow \quad p(\sum(1-G_i) + \sum G_i) = \sum G_i$$
+$$\Rightarrow \quad p = \frac{\sum G_i}{\sum(1-G_i) + \sum G_i}$$
+$$\Rightarrow \quad p = \frac{\sum G_i}{n - \sum G_i + \sum G_i}$$
+$$\Rightarrow \quad p = \frac{1}{n}\sum G_i$$
+$$p^{(j+1)} = E[\frac{1}{n}\sum G_i] = \frac{1}{n}\sum E(G_i)$$
+$$= \frac{1}{n}\sum w_{i0}^{(j)}$$
+
+For $\lambda$: 
+
+$$\frac{\delta}{\delta \lambda}ln(L(p, \lambda)) =
+0 + 0 + \frac{\delta}{\delta \lambda}\sum(1-G_i)\left[x_ilog(\lambda) - \lambda - \sum_ix_i!\right]$$
+
+$$0 = \sum(1-G_i) \left[\frac{x_i}{\lambda} - 1\right]$$
+$$0 = \frac{\sum(1 - G)x_i}{\lambda} - \sum(1-G_i)$$
+$$\sum(1-G_i) = \frac{\sum(1-G_i)x_i}{\lambda}$$
+$$\lambda = \frac{\sum(1-G_i)x_i}{\sum(1-G_i)}$$
+$$\lambda^{(j+1)} = E \left[\frac{\sum(1-G_i)x_i}{\sum(1-G_i)}\right]$$
+$$\lambda^{(j+1)} = \left[\frac{\sum E(1-G_i)x_i}{\sum E(1-G_i)}\right]$$
+$$\lambda^{(j+1)} = \frac{\sum w_{i0}^{(j)}x_i}{\sum w_{i0}^{(j)}}$$
+**b**
+
+```{r b, results = "hold"}
+### Define functions for EM algorithm
+
+# w1 = E(Gi|Xi, p, lambda)
+w1 <- function(x, p, lambda) {
+  p * ifelse(x == 0, 1, 0) / 
+    (p + (1 - p) * exp(-lambda))
+}
+
+# p plus 1
+pp1 <- function(x, p, lambda) {
+  sum(w1(x, p, lambda)) / length(x)
+}
+
+# lambda plus 1
+lp1 <- function(x, p, lambda) {
+  w1s <- w1(x, p, lambda)
+  sum((1 - w1s) * x) / sum(1 - w1s)
+}
+
+### generate reproducible, random data set
+set.seed(1234)
+xs <- rpois(500, 3) # draw 500 from Poisson(lambda = 3)
+# p above is probability of 0, so here 1 - p
+g <- rbinom(n = 500, size = 1, p=.7) 
+xs <- xs * g # joint distribution is simply product of X|G and G
+
+# initialize vector to add new lambda and p
+# -1 facilitates indexing during iteration
+lambdas <- c(-1, 1)
+probs <- c(-1, .1)
+
+# define function to calculate bivariate change among neighboring iterations
+# take abs of diff for each parameter independently and add for final metric
+em_inc <- function(lambdas, probs) {
+  
+abs(lambdas[length(lambdas)] - lambdas[length(lambdas) - 1])
+  + abs(probs[length(probs)] - probs[length(probs) - 1])
+  
+}
+
+counter <- 1 # instantiate a counter
+
+# iterate while values of lambda and p change much, according to em_inc()
+while(em_inc(lambdas, probs) > .0001) {
+  
+  counter <- counter + 1 # increment counter
+  
+  # calculate new lambda and p, add to vector outside loop
+  probs[counter + 1] <- pp1(x=xs, 
+                            p=probs[counter], 
+                            lambda = lambdas[counter])
+  lambdas[counter + 1] <- lp1(x=xs, 
+                            p=probs[counter], 
+                            lambda = lambdas[counter])
+}
+
+cat(paste0("number of iterations to convergence = ",
+           length(lambdas)-1))
+cat(paste0("\nestimated lambda = ", round(lambdas[length(lambdas)], 4)))
+cat(paste0("\nestimated p(G) = ", round(probs[length(probs)], 4)))
+```
+
+The results of the EM algorithm return values of $p$ and $\lambda$ nearly identical to those used to simulate the data, with $p = 0.3094$ and $\lambda = 3.0522$ after 11 iterations. 
+
+**4c**
+
+Applying the EM algorithm to the crab data, lambda, the average (and variance of) the number of satellite crabs converges to $\lambda = 4.50$. $p$, the probability that $G = 1$, and $X$ is thus 0, converges to 0.35.
+
+With a probability of 0.35, there is an indication of zero-inflation in the satellite data. However, the strength of this evidence stems entirely from intuition based on the magnitude of the parameter estimate ($p = 0.35$ is ... medium?) and the number of observations in the dataset ($n = 173$), which is ... medium? The EM algorithm does not generate estimates of uncertainty for the parameters, so a test of the hypothesis that there is no zero-inflation is not possible. 
+
+I have added a quick hypothesis test here, simulating 100,000 data sets of 173 observations drawn from a Poisson distribution with $\lambda = 4.5$. In fully zero of 100,000 simulations is there a case where the proportion of zeros exceeds 0.35, so we reject the null hypothesis of Poisson distribution in the case of the crab satellite data at $p < 0.00001$.
+
+```{r, results = "hold"}
+### Crab data analysis
+suppressPackageStartupMessages(library(tidyverse)) # my favorite
+
+# load data
+cd <- read_table("~/Dropbox/STAT579-Missing-Data/crab_data.txt", 
+                 col_names = c("obs", "color", "spine", "weight", "width", "sat"))
+
+# redefine EM algorithm as above
+em_inc <- function(lambdas, probs) {
+abs(lambdas[length(lambdas)] - lambdas[length(lambdas) - 1])
+  + abs(probs[length(probs)] - probs[length(probs) - 1])
+}
+
+lambdas <- c(-1, 1)
+probs <- c(-1, .1)
+
+# get data from satellite column
+xs <- cd %>% pull(sat)
+
+counter <- 1
+while(em_inc(lambdas, probs) > .00001) {
+  counter <- counter + 1
+  probs[counter + 1] <- pp1(x=xs, 
+                            p=probs[counter], 
+                            lambda = lambdas[counter])
+  lambdas[counter + 1] <- lp1(x=xs, 
+                            p=probs[counter], 
+                            lambda = lambdas[counter])
+}
+
+cat(paste0("number of iterations to convergence = ",
+           length(lambdas)-1))
+cat(paste0("\nestimated lambda = ", round(lambdas[length(lambdas)], 4)))
+cat(paste0("\nestimated p(G) = ", round(probs[length(probs)], 4)))
+
+### hypothesis test
+
+# here I sample one seed per dataset, for reproducibility
+seeds <- sample(1:100000, 100000)
+
+# for each of 100,000 seeds
+pees <- map_dbl(seeds, ~ {
+
+  set.seed(.x)
+  rsamp <- rpois(173, 4.5) # generate sample data 
+  sum(rsamp == 0)/173 # calculate proportion of zeros
+})
+
+# calculate proportion of datasets for which there are greater than 35% zeros 
+cat(paste0("\n\nproportion of datasets with > 35% zeros = ",
+           sum(pees > 0.35)/100000))
+```
+
+

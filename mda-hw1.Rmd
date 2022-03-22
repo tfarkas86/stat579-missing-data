@@ -2,24 +2,206 @@
 title: "Missing Data Analysis Homework 1"
 author: "Tim Farkas"
 date: "8/30/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE)
 ```
 
-## Problem 5: Using simulation analysis
+### Problem 1
 
+Let $Y$ be a random variable and $R$ be its response indicator. 
+
+**(a)** Show that assuming $p(y | R = 0) = p(y | R = 1)$ is equivalent to assuming $p(y | R = 1) = p(y)$.
+
+$$p(y) = p(y | R = 0)p(R = 0) + p(y | R = 1)p(R = 1)$$
+Substite $p(y | R = 1)$ for $p(y | R = 1):$
+
+$$p(y) = p(y | R = 1)p(R = 0) + p(y | R = 1)p(R = 1)$$
+Factor out $p(y | R = 1)$:
+
+$$p(y) = p(y | R = 1)[p(R = 0) + p(R = 1)]$$
+By total probability: 
+
+$$p(y) = p(y | R = 1)_\square$$
+**(b)** Show that assuming $p(y | R = 0) = p(y | R = 1)$ is equivalent to assuming $p(R = r | y) = p(R = r)$ for all $y \in \Re, R \in (0, 1)$.
+
+We solve for $R = 0$ and $R = 1$ separately:
+
+For $R = 0$:
+
+$$p(R = 0 | y) = p(R = 0)$$
+
+By Bayes Theorum: 
+
+$$ \frac{p(y | R = 0)p(R = 0)}{p(y)} = p(R = 0)$$
+Cancel $p(R = 0)$ and multiply both sides by $p(y)$:
+
+$$p(y | R = 0) = p(y)$$
+By proof in part a, proof here is complete. Logic is identical for $R = 1$, covering all cases.
+
+**c** If $p(R = 1 | y)$ is an increasing function of $y$, show that $E[Y | R = 1] > E[Y]$.
+
+First express $E(Y)$ given $R$ in terms of total probability:
+
+$$E(Y) = E(y | R = 0)p(R = 0) + E(y | R = 1)p(R = 1)$$
+Next we re-express the first term: 
+
+$$ E(y|R=0)p(R=0) = p(r=0)\sum{y_ip(y_i|R=0)}$$
+Apply Bayes' Theorum, and cancel $p(R = 0)$:
+
+$$p(R=0)\sum{y_ip(y_i|R=0)} = p(R=0)\sum{\frac{y_ip(y)p(R=0|y)}{p(R=0)}} = \sum{y_ip(y)p(R = 0|y)} $$
+Set $y = y_{min}$, where $y_{min}$ is smallest $y$ value in data. Then, because $p(R=1|y)$ increases with the value of $y$, $1 - p(R=1|y) = p(R=0|y)$ decreases with the value of y. Hence, because $p(R=0|y) > p(R=0|y_{min})$
+
+$$\sum{y_ip(y)p(R = 0|y)} < \sum{y_ip(y)p(R = 0|y_{min})} $$
+
+Factor out the constant $p(R = 0|y_{min})$ and rewrite sum as expectation: 
+
+$$\sum{y_ip(y)p(R = 0|y)} < p(R = 0|y_{min})E(y)$$
+Because $\sum{y_ip(y)p(R = 0|y)} = E(y|R=0)p(R = 0)$,
+
+$$E(y)  E(y|R=1)p(R=1) + p(R = 0|y_{min})E(y) $$
+Rearrange and factor out $E(y)$:
+
+$$E(y)[1 - p(R = 0|y_{min})] = E(y|R = 1)p(R=1)$$
+Rearrange and substitue $[1 - p(R = 0|y_{min})]$ for $p(R=1|y_{min})$:
+
+$$\frac{E(y)}{E(y|R = 1)} < \frac{p(R=1)}{p(R=1|y_{min})}$$
+From here, we need to show that the RHS is less than 1.
+
+Using Bonferroni's inequality with the join distribution: 
+
+$$P(R = 1, y = y_{min}) \ge 1 - [(1 - P(y = y_{min})) + (1 - P(R = 1))] $$
+$$P(R = 1,y = y_{min}) \ge 1 - [2 - P(y = y_{min}) - P(R = 1)] $$
+$$P(R = 1,y = y_{min}) \ge P(y = y_{min}) + P(R = 1) - 1 $$
+$$P(R = 1,y = y_{min}) - P(R = 1) \ge P(y = y_{min}) - 1 $$
+$$P(R = 1,y = y_{min}) - P(R = 1) \ge P(y = y_{min})P(R = 1) - P(R = 1) $$
+
+$$P(R = 1,y = y_{min}) - P(R = 1) \ge P(y = y_{min})P(R = 1) - P(R = 1) $$
+
+$$P(R = 1,y = y_{min}) \ge P(y = y_{min})P(R = 1) $$
+Divide by $P(y = y_{min})$ to get marinal and finish proof:
+
+$$P(R = 1| y = y_{min}) \ge P(R = 1) $$
+
+Hence $\frac{p(R=1)}{p(R=1|y_{min})} \le 1$ 
+
+### Problem 2
+
+Let $\textbf{Z} = (Z_1, Z_2, ..., Z_k)$ and $\textbf{R} = (R_1, R_2, ..., R_k)$.
+
+**a** Let $K = 3$, write down $Z_{(r)}$ and $Z_{(\overline{r})}$ for all possible values of $r \in \{0, 1\}^3$.
+
+Ordered $Z_{(r)}$ and corresponding $Z_{(\overline{r})}$:
+
+$$Z_{(r)} \in \{(\emptyset),(Z_1), (Z_2), (Z_3), (Z_1, Z_2), (Z_1, Z_3), (Z_2, Z_3), (Z_1, Z_2, Z_3)\}  $$
+$$Z_{(\overline{r})} \in \{(Z_1, Z_2, Z_3), (Z_2, Z_3), (Z_1, Z_3),(Z_1, Z_2),(Z_3),(Z_2), (Z_1),(\emptyset) \}  $$
+
+**b** Let $K = 2$, $Z_1 \in \{1, 2\}$, $Z_2 \in \{A, B\}$, $R \in \{0, 1\}^2$. Write all the elements of the sample space $(Z_{(R)}, R)$.
+
+$$(Z_{(R)}, R) \in \{(1A, 11), (1B, 11), (2A, 11), (2B, 11), (1, 10), (2, 10), (A, 01), (B, 01), (\emptyset, 00)\}$$
+**c** Data are said to be missing at random if $p(R = r|z) = p(R = r|z_{(r)})$. Say $K = 3$. Write down the MAR assumption for each individual $r \in \{0,1\}^3$.
+
+$$p(R = 000 | z) = p(R = 000 | \emptyset)$$
+$$p(R = 001 | z) = p(R = 001 | z_3)$$
+$$p(R = 010 | z) = p(R = 010 | z_2)$$
+$$p(R = 100 | z) = p(R = 100 | z_1)$$
+$$p(R = 011 | z) = p(R = 011 | z_2, z_3)$$
+$$p(R = 101 | z) = p(R = 101 | z_1, z_3)$$
+$$p(R = 110 | z) = p(R = 110 | z_1, z_2)$$
+$$p(R = 111 | z) = p(R = 111 | z_1, z_2, z_3)$$
+
+**d**
+
+Under MAR: $P(R = 0|Z_{r}) = P(R = 0)$, because if R = 0 there are no observed data when K = 1. To finish proof, show that $P(R = 1 | Z_{r}) = P(R = 1)$:
+
+$$P(R = 0|Z) = P(R = 0)$$
+$$\frac{P(R = 0, Z)}{P(Z)} = 1 - P(R = 1) $$
+$$P(R = 0, Z) = P(Z) - P(R = 1)P(Z)$$
+
+Because $P(Z) = P(R = 0, Z) + P(R = 1, Z)$
+
+$$P(R = 0, Z) = P(R = 0, Z) + P(R = 1, Z) - P(R = 1)P(Z)$$
+Cancel and rearrange: 
+
+$$ P(R = 1, Z) = P(R = 1)P(Z)$$
+
+Divide by $P(Z)$ to finish proof:
+
+$$P(R =1 | Z) = P(R = 1) $$
+
+
+### Problem 3
+
+Let the full data be $(Y_1, Y_2)$, where $Y_1$ is fully observed, and $Y_2$ is possibly missing. Let $R = 1$ if $Y_2$ is observed, and $R = 0$ if $Y_2$ is missing. Let $\pi(Y_1,Y_2) = p(R = 1|Y_1, Y_2)$. Use the definitions to classify the following missing mechanism as MCAR, MAR, or MNAR. 
+
+**a** $\pi(Y_1,Y_2) = 0.5$
+
+This mechanism is missing completely at random (MCAR), because the probability of missingness $p(R = 0)$ is a constant value, not related to any of the measured variables $Y_1$ or $Y_2$. 
+
+**b** $\pi(Y_1,Y_2) = \frac{e^{Y_1}}{1 + e^{Y_1}}$
+
+This mechanism is missing at random (MAR) because the probability of missingness $p(R = 0)$ is not related to $Y_2$, the variable whose missingness is indicated by $R$. 
+
+**c** $\pi(Y_1,Y_2) = \frac{e^{Y_1 + Y_2}}{1 + e^{Y_1 + Y_2}}$
+
+This mechanism is missing not at random(MNAR) because the the probability of missingness $p(R = 0)$ *is* related to $Y_2$, the variable whose missingness is indicated by $R$. 
+
+### Problem 4
+
+**a**
+Thm: $E_Y[E_X(X|Y)] = E(X)$
+$$E[\hat{\mu}^{cc}] = E[E(\hat{\mu}^{cc}|R)] $$
+Replace with definition:
+
+$$E[\hat{\mu}^{cc}] = E[E(\frac{\sum Y_iR_i}{\sum R_i}|R)] $$
+When R = 0, numerator is 0, so 
+
+$$E[\hat{\mu}^{cc}] = E[\frac{\sum R_iE(Y|R = 1)}{\sum R_i}|R] $$
+$$E[\hat{\mu}^{cc}] = E[Y|R = 1] $$
+**b**
+
+By Thm: $E[V(X|Y)] + V[E(X|Y)] = V(X)$
+
+$$V(\mu^{cc}) = E[V(\mu^{cc}|R)] + V[E(\mu^{cc}|R)]$$
+
+By MCAR: $E(\mu^{cc}|R) = E(\mu^{cc}) = \mu$, Hence
+
+$$= E[V(\mu^{cc}|R)] + V(\mu)$$
+Why $V(\mu)$ = 0?
+
+$$ = E[V(\mu^{cc}|R)] $$
+$$E[V(\frac{\sum Y_iR_i}{\sum R_i}|R)]$$
+
+### Problem 5
+
+**a** Calculate $\mu = E(Y)$ and $\sigma^2 = Var(Y)$.
+
+$$E(Y) = E_XE_Y(Y|X_1, X_2)$$
+$$= E_X(3 + X_1 + 2X_2)$$
+$$= E(3) + E(X_1) + 2E(X_2)$$
+Since $X_1, X_2 ~ N(0, 1)$:
+
+$$E(Y) = E(3) + E(0) + E(0) = 3$$
+$$Var(Y) = E(Var(Y | X_1, X_2)) + Var(E(Y|X_1, X_2)) $$
+Since $Y ~ N(3 + X_1 + 2X_2, 1)$, $E(Var(Y|X_1, X_2)) = 1$.
+
+$$Var(E(Y|X_1, X_2)) = Var(3 + X_1 + 2X_2)$$
+By Theorum $Var(aX + b) = a^2Var(X)$:
+
+$$Var(3 + X_1 + 2X_2) = 0 + Var(X_1) + 4Var(X_2) = 5 $$
+Hence, 
+
+$$Var(Y) = E(Var(Y | X_1, X_2)) + Var(E(Y|X_1, X_2)) = 1 + 1 + 4 = 6$$
 Load dependencies
 ```{r libraries}
 library(tidyverse)
 ```
 
-### Test Simulation
-
-#### Create ground-truth and observed datasets
-```{r full data set}
+```{r full data set for testing, echo=FALSE, eval = FALSE}
 # parameters
 n <- 10 # sample size
 beta_x <- c(0, 0) # coefficients for relationship between x1 and x2 
@@ -38,8 +220,7 @@ obs <- full %>%
   mutate_at(vars(y), function(y) ifelse(rbinom(n, 1, p = pmis), NA, y))
 ```
 
-#### Imputation
-```{r cc & mean & regression imputations}
+```{r cc & mean & regression imputations for testing, echo=FALSE, eval = FALSE}
 # complete cases
 obs_cc <- obs %>%
   drop_na()
@@ -62,7 +243,7 @@ obs_dfs <- list(cmplt_cases = obs_cc,
                 reg_imp = obs_regimp)
 ```
 
-#### Evaluate Imputations
+To start, I create a function to produce the statistics for evaluating imputation methods. It calculates regression coefficients for $E(Y) = b_0 + b_11X_1 + b_2X_2)$, mean values for $Y$ and the variance of the mean of $Y$.
 ```{r}
 # function to get stats for evaluation of bias, variance, MSE 
 eval_stats <- function(df) {
@@ -70,16 +251,14 @@ eval_stats <- function(df) {
                  set_names(c("b0", "b1", "b2")) %>% 
                  bind_rows()
                mus <- df %>% summarize_all(mean)
-               vars <- df %>% summarize_all(var)
+               vars <- df %>% summarize_all(var) / nrow(df)
                list(coefs = coefs, mus = mus, vars = vars)
 }
-
-eval_out <- map(obs_dfs, eval_stats)
-
 ```
 
-## Monte Carlo Simulation
+Next, I create a function to perform a single iteration of the simulation. I use the `tidyverse` here, so the code differs substatially from the given R Handout. Noteably, this function takes a seed for initializing the random number generator, so each iteration can be reproduced with certainty. 
 
+I create a full dataset given the specified model, randomly insert `NA` values in the $Y$ variabel, then create three data sets through incomplete case removal, mean imputation, and regression imputation. Finally, I call the `eval_stats` function defined above and return a list of statistics for the iteration. 
 ```{r}
 # simulation function
 eval_impute <- function(n, beta_x, beta_y, p_mis, seed = 1345) {
@@ -123,69 +302,80 @@ eval_impute <- function(n, beta_x, beta_y, p_mis, seed = 1345) {
   return(map(obs_dfs, eval_stats))
 
 }
-
-## Test the function
-test_out <- eval_impute(n=1000, 
-                        beta_x = c(0, 0), beta_y = c(3, 1, 2), 
-                        p_mis = .2)
 ```
 
+To run the simulation in a reproducible way, I set a seed and draw one integer at random (without replacement) for each iteration of the simulation (here, L = 1000 simulations). I call the simluation functoin `eval_impute`, passing it a different seed for each iteration. Finally, I reshape the data by transposing the resulting list (it's all lists of lists of lists), and bind the iterations into data frames for downstream analysis.
 ```{r run simulation}
 set.seed(1345)
-L = 5
+L = 1000
 seeds <- sample(1:9999, size = L, replace = FALSE)
 
-sim_out <- map(seeds, eval_impute, 
-               n = 1000, beta_x = c(0, 0), beta_y = c(3, 1, 2), 
-               p_mis = .2)
+pmis <- c(.1, .5, .8)
+sim_out <- map(pmis, ~ map(seeds, eval_impute, 
+                                    n = 1000, beta_x = c(0, 0), 
+                                    beta_y = c(3, 1, 2), p_mis = .x)) %>%
+  set_names(c("p.1", "p.5", "p.8"))
 
 # reshape
-sim_dfs <- map(sim_out %>% 
-                transpose, transpose) %>%
-  map(function(x) map(x, bind_rows))
+sim_dfs <- map(sim_out, ~ map(.x %>% transpose(), transpose)) %>%
+  map(~ map(.x, ~ map(.x, bind_rows))) 
+
+
 ```
 
+To summarize the results, I make data frames of means, biases, variances, and MSEs, then bind them together into a table. I'm very happy with the approach above, but this is clunky -- a very manual process with reproduction of effort.
 ```{r summarize}
-sim_dfs %>%
-  map(function(x) map(x, summarize_all, mean))
+
+emc <- sim_dfs %>%
+  map(~ map(.x, ~ .x$mus %>% summarize(mu = mean(y)))) 
+
+emc_df <- emc %>% 
+  map(~ unlist(.x)) %>%
+  bind_rows() %>%
+  set_names(c("complete_cases", "mean_imp", "reg_imp")) %>%
+  mutate(pmis = names(emc), 
+         stat = "mc_exp")
+
+bmc <- emc %>%
+  map(~ map(.x, ~ .x - 3) %>% unlist()) %>%
+  dplyr::bind_rows() %>%
+  set_names(c("complete_cases", "mean_imp", "reg_imp")) %>%
+  mutate(pmis = names(emc), 
+         stat = "mc_bias")
+
+vmc <- map2(.x = emc, .y = sim_dfs, ~ map2(.x = .x, .y = .y, ~ (.y$mus$y - .x$mu)^2)) %>%
+  map(~ map(.x, mean) %>% unlist()) %>%
+  dplyr::bind_rows() %>%
+  set_names(c("complete_cases", "mean_imp", "reg_imp")) %>%
+  mutate(pmis = names(emc), 
+         stat = "mc_var")
+
+msemc <- sim_dfs %>%
+  map(~ map(.x, ~ (.x$mus$y - 3)^2)) %>%
+  map(~ map(.x, mean) %>% unlist()) %>%
+  dplyr::bind_rows() %>%
+  set_names(c("complete_cases", "mean_imp", "reg_imp")) %>%
+  mutate(pmis = names(emc), 
+         stat = "mc_mse")
+
+vars <- sim_dfs %>% 
+  map(~ map(.x, ~ .x$vars %>% summarize(var = mean(y)) ) %>% unlist()) %>%
+  bind_rows() %>%
+  set_names(c("complete_cases", "mean_imp", "reg_imp")) %>%
+  mutate(pmis = names(emc), 
+         stat = "naive_var")
+  
+stat_out <- bind_rows(emc_df, bmc, vmc, msemc, vars) %>%
+  arrange(stat, pmis)
+
+knitr::kable(stat_out)
 ```
 
+The results of this simulation demonstrate clearly that the three approaches (complete case analysis, mean imputation, and regression imputation), all show negligible bias in the estimation of the expected value for the variable with missing data. For each of the three approaches, it appears that bias is lowest when the proportion of missing data is intermediate, but more exploration is required to determine whether this effect is more than artifactual of the random sampling process. 
 
-```{r test for stackoverflow}
-library(purrr)
+On the other hand, substantial differences among the approaches manifest when evaluating their efficiency. Looking at naive variance of the mean, we see that complete case analysis shows values similar to the Monte Carlo variance, whereas both the mean imputation and regression imputation approaches underestimate the variance. Underestimation of the variance becomes more severe as the proportion of missing data increases. 
 
-list_norms <- function(n, r, seed) {
-  set.seed(seed)
-  map(1:r, rnorm,n = n) %>%
-    set_names(c("A", "B", "C"))
-}
-
-set.seed(1000)
-mylist <- map(sample(1:1000, 5), list_norms, n = 3, r = 3)
-
-purrr::reduce(mylist, .f = function(x) {
-  rbind(x[[1]])
-})
-
-simplelist <- map(1:3, function(x) rbind(rnorm(n = 3)))
-
-reduce(simplelist, rbind)
-
-```
-
-
-```{r}
-list_norms <- function(n, r, seed) {
-  set.seed(seed)
-   map(1:r, rnorm, n = n) %>%
-  set_names(c("A", "B", "C")) #%>%
-  #as_tibble
-}
-
-list_norms(5, 3, 1)
-
-map_dfr(1:10, list_norms, n = 5, r = 3, .id = 'grp')
-```
+Using MSE as an estimate of performance for each of the three methods, we see that regression imputation outperforms both complete case analysis and mean imputation, which perform very similarly. Of course, this simulation model assumes that missingness is completely at random, and not related to any other variables, measured or unmeasured. The results would likely change if data were not missing completely at random -- for example, complete case analysis would lead to bias. 
 
 
 
